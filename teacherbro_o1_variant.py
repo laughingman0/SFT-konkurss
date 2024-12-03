@@ -117,7 +117,7 @@ def classify_question(user_question):
 # main function after test has been created
 def phase2():
     query = entry.get()
-    global test, testmade
+    global test, testmade, vajag_rules
     test_fixed = ''.join(test)
     classification = classify_question(query)
     if classification == "inquiry":
@@ -140,9 +140,10 @@ def phase2():
         on_click()
         testmade = True
         return print("succesfully set testmade back to True after on_click() completion")
-    elif classification == "make test":
+    elif classification == "test":
         test = []
         testmade = False
+        vajag_rules = False
         on_click()
         return print("succesfully entered initial loop")
 #setup
