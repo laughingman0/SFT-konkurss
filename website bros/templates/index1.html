@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>The Bros App</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>How can we help you? _</h1>
+        <form method="POST">
+            <input type="text" placeholder="Ask me something?" id="request_form" name="request">
+            <input type="submit" value="Ask">
+        </form>
+        <p>{{ answer }}</p>
+    </div>
+
+    {% if TestName or Context_for_tasks_and_tasks_themselves or conclusions %}
+    <div class="container" id="TestSection">
+        {% if TestName %}
+        <h2>Test Name</h2>
+        <p>{{ TestName }}</p>
+        {% endif %}
+
+        {% if Context_for_tasks_and_tasks_themselves %}
+        <h2>Context for Tasks and Tasks Themselves</h2>
+        <ul>
+            {% for task in Context_for_tasks_and_tasks_themselves %}
+                <li>{{ task }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if conclusions %}
+        <h2>Conclusions</h2>
+        <p>{{ conclusions }}</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</body>
+</html>
