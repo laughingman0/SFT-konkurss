@@ -292,7 +292,7 @@ def ask_something():
             return render_template("index1.html", answer=result)
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    app.run(host='93.127.186.126', port=3000)
 
 '''
 from flask import Flask, request, render_template
