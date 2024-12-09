@@ -1,11 +1,47 @@
+html, body {
+    min-height: 16px;
+}
 body {
     font-family: Arial, sans-serif;
-    background-color: #55595e;
+    background-color: #45474e;
+    margin:0;
+    /*#4C5578*/
 }
 
 h1 {
     color: white;
     text-align: center;
+    font-size: 30px;
+}
+
+h2 {
+    color: whitesmoke;
+    text-align: center;
+    text-size-adjust: 20;
+}
+h3 {
+    color: whitesmoke;
+    margin: 8px 0;
+    text-size-adjust: 20;
+    text-align: center ;
+    font-size: 90px;
+    padding: 0;
+}
+
+.container[id=Heading] {
+    padding: 0;
+    margin: auto;
+    width: 50%;
+    padding-top: 25px;
+}
+.container[id=Box] {
+    /*max-width: 1000px;*/
+    margin: auto;
+    width: 50%;
+    /*padding: 100px;*/
+    padding-bottom: 0px;
+    padding-top: 70px;
+    width: 1200px;
 }
 
 .container {
@@ -13,29 +49,108 @@ h1 {
     margin: auto;
     width: 50%;
     padding: 100px;
+    
+}
+.container[id=TestSection] {
+    padding: 5px 5px;
+    margin : auto;
+    text-align: center;
+    width: 1000px;
 }
 
-input[type=text] {
-    width: 100%;
-    padding: 12px 12px;
+input[type="text"] {
+    width: 100%; /* Ensure it spans the container's width */
+    font-size: 3.5rem; /* Default font size */
+    padding: 12px; /* Default padding */
     margin: 8px 0;
     border-radius: 8px;
     box-sizing: border-box;
+    border: 2px solid #ddd; /* Optional: Add a visible border */
 }
 
-input[type=submit] {
-    width: 20%;
-    padding: 6px 6px;
-    border-radius: 8px;
-    margin: 8px 0;
+input[type="submit"] {
+    width: 50%; /* Adjust width for better usability */
+    padding: 6px;
+    border-radius: 4px;
+    font-size: 2rem;
     transition: background-color 0.1s;
+    margin: auto; /* Center the button */
+    display: block;
 }
+
+
+
 
 input[type=submit]:hover {
-    background-color: #bababa;
+    background-color: hsl(140, 7%, 57%);
 }
 
 p {
     color: white;
     text-align: justify;
+}
+li {
+    color: white;
+    text-align: justify;
+    font-size: 20px;
+}
+
+.container[id=Box] input[type=text] {
+    font-size: 100; /* Increase font size */
+    padding: auto; /* Add more padding for a larger input field */
+    width: 100%;
+}
+.container[id=Box] input[type=submit]{
+    font-size: 100; /* Increase font size */
+    padding: auto; /* Add more padding for a larger input field */
+    width: 20%;
+    height: 10%;
+    min-height: 5px;
+}
+
+@media (max-width: 768px) {
+    input[type="text"] {
+        font-size: 2rem; /* Larger font size for better readability */
+        padding: 14px; /* Add more padding */
+    }
+    input[type="submit"] {
+        font-size: 1.8rem; /* Larger font size for submit button */
+        padding: 14px; /* Add more padding */
+        width: 80%; /* Expand the button for better tap area */
+    }
+}
+
+/* For larger screens */
+@media (min-width: 1024px) {
+    input[type="text"] {
+        font-size: 2rem; /* Slightly larger font size for desktops */
+        padding: 16px; /* Add more padding */
+    }
+    input[type="submit"] {
+        font-size: 2rem; /* Consistent font size for submit button */
+        padding: 16px;
+        width: 30%; /* Narrower button for desktop */
+    }
+}
+/* Larger title for mobile devices */
+@media (max-width: 768px) {
+    h3 {
+        font-size: 60px; /* Increase font size for better visibility */
+        line-height: 1.2; /* Adjust line height for better spacing */
+        margin: 12px 0; /* Add some spacing above and below */
+    }
+}
+
+/* Title for very small screens (e.g., phones in portrait mode) */
+@media (max-width: 480px) {
+    h3 {
+        font-size: 50px; /* Slightly smaller for tiny screens */
+    }
+}
+
+/* Title for larger screens */
+@media (min-width: 1024px) {
+    h3 {
+        font-size: 50px; /* Maintain proportional size for desktop */
+    }
 }

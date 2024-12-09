@@ -1,4 +1,4 @@
-from flask import Flask, request, render_template
+from flask import Flask, request, render_template, redirect
 import sqlite3
 import sqlite3
 import os
@@ -21,6 +21,7 @@ testmade = False
 has_image = False
 ruleset = []
 P2ConvHasBeenCalled = False
+arerules = False
 # OpenAI API Key
 os.environ['OPENAI_API_KEY'] = ""
 OpenAI.api_key = ""
@@ -42,7 +43,7 @@ def make_test(input):
     global client
 
     response = client.chat.completions.create(
-        model = "o1-preview",
+        model = "gpt-4o-mini",
         messages=[
             {
                 "role": "user","content": input
@@ -51,8 +52,6 @@ def make_test(input):
     )
     test.append(response.choices[0].message.content)
     structured_output = structuringOutput(response.choices[0].message.content)
-    print(structured_output)
-    print(response.choices[0].message.content)
     return structured_output
 
 #process the image for use by o1
@@ -82,7 +81,7 @@ def process_image(path):
 def solve_and_correct_image():
     query = "the following is a test by a student. check it and grade it percentually. " + "\n" + ''.join(process_image())
     response = client.chat.completions.create(
-    model = "o1-preview",
+    model = "gpt-4o-mini",
     messages=[
         {
             "role": "user","content": query,
@@ -96,7 +95,7 @@ def solve_and_correct_image():
 def solve_test():
     query = "the following is a test. solve it and provide answers to all questions. " + "\n" + ''.join(test)
     response = client.chat.completions.create(
-        model = "o1-preview",
+        model = "gpt-4o-mini",
         messages=[
             {
                 "role": "user","content": query,
@@ -121,13 +120,12 @@ def classify_question(user_question):
     
     # Extract classification from the response
     classification = response.choices[0].message.content.strip().lower()
-    print(classification)
     return classification
 
 # main function after test has been created
 def phase2():
     query = request.form['request']
-    global test, testmade, vajag_rules, P2ConvHasBeenCalled
+    global test, testmade, vajag_rules, P2ConvHasBeenCalled, solution
     test_fixed = ''.join(test)
     classification = classify_question(query)
     if classification == "inquiry":
@@ -143,8 +141,9 @@ def phase2():
         #return print("answered question without changing maketest status")
     elif classification == "solution":
         solve_test()
-        solution = print(''.join(solution))
-        return render_template("index1.html", answer=solution)
+        solution =''.join(solution)
+        structured_output = structuringOutput(solution)
+        return render_template("index1.html", **structured_output)
         #return print("solved test and provided results")
     elif classification == "conversational" or classification == "general":
         P2ConvHasBeenCalled = True
@@ -175,34 +174,62 @@ agent_executor = create_sql_agent(
     llm = ChatOpenAI(model = "gpt-4o-mini"),
     toolkit=toolkit,
     verbose=True,
-    handle_parsing_errors=True
+    handle_parsing_errors="Check your output and make sure it conforms, use the Action/Action Input syntax",
 )
 #structuring responses
+def criteria(input):
+    global arerules
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "you are a Helper that helps figure out whether the user has rules mentioned or not. If he does, return True. If he doesn't, return False. For example: if a user's input would be 'no', or 'no criteria', you would return False, if the user's input would be '2 exercises, make it easy', then you would return True." },
+            {"role": "user", "content": input }
+        ]
+    )
+    answer = completion.choices[0].message.content.strip()
+    if answer == "True" or answer == True:
+        arerules = True
+        return arerules
+    elif answer == "False" or answer == False:
+        arerules = False
+        return arerules
 
 class Structuring(BaseModel):
     TestName: str
     Context_for_tasks_and_tasks_themselves: list[str]
     conclusions: str
+    
 def structuringOutput(input):
     completion = client.beta.chat.completions.parse(
         model="gpt-4o-2024-08-06",
         messages=[
-            {"role": "system", "content": "Extract the information from the test. Make sure to fully extract the tasks from the test given, including context for the task and what you have to do in it."},
+            {"role": "system", "content": "Your only job is do structure the text given to you by the user following the response format. Do not add any of your own text, and do not remove any of the text from the original text, all you have to do is structure it. Structure a single task and its context and its questions under one object and do this for all tasks."},
             {"role": "user", "content": input}
         ],
     response_format=Structuring,
 )
     message = completion.choices[0].message.parsed
     return {
-        "TestName": message.TestName,
+        "TestName" : message.TestName,
         "Context_for_tasks_and_tasks_themselves": message.Context_for_tasks_and_tasks_themselves,
         "conclusions": message.conclusions
+        
     }
+
+@app.errorhandler(500)
+def internal_server_error(error):
+    global arerules, testmade, rulesT, vajag_rules
+    app.logger.error(f" ILJIC SERVEERS CRASOJA SALABO, server error:{error}")
+    vajag_rules = False
+    rulesT = ""
+    testmade = True
+    arerules = False
+    return redirect(request.url),500
 
 @app.route('/', methods=['POST'])
 def ask_something():
     query = request.form['request']
-    global vajag_rules, testmade, rulesT, has_image, ruleset
+    global vajag_rules, testmade, rulesT, has_image, ruleset, arerules
     #text goes to chatGPT
     #chatGPT gives answer
     # Get the query text from the entry widget
@@ -214,57 +241,41 @@ def ask_something():
         return phase2()
     if testmade == False:
         if vajag_rules == True:
+            arerules = criteria(query)
+        if arerules == True:
             rulesT = query
-        '''
-        if has_image == False:
-            text.delete("1.0", tk.END)
-            text.insert(tk.END, "fotka ir ?")
-            if query == "nav":
-                has_image == False
-            if query == "image.jpg":
-                has_image = True
-                # placeholder prieks path SITO SATAISIT KKAD
-                process_image(query)
-                ruleset = ''.join(ruleset)
-        '''
+            pass
+        else:
+            pass
 
         classification = classify_question(query)
         if classification == "test" and rulesT == "":
             
             #seit janotiek rules iegusana
-            answer = "pasaki ludzu savus kriterijus , lai varu izveidot testu ^_^"
+            answer = "Is there any criteria you would like me to follow? ^_^"
             vajag_rules = True
             return render_template('index1.html', answer=answer)
             #rulesT.append(query)
             #rules.append(rule)
             ##############################################
-            '''
-        elif classification == "test" and ruleset:
-            query_agent = f"Tell me thoroughly whats listed in the database. The criteria is following: The test must be in Latvian, you must cover ALL of the topics from the database. The database contains the following: Column 1 contains all of the topics the explanations for it, Column 2 contains example questions related to the corresponding topic in Column 1. You must start your final answer with 'Make a test using the information i'm giving you here: {ruleset} and this information WITHOUT using the examples and creating your own tasks:' and then list the information youve found. This means you must output ALL relevant information so that the test can be created."
-            result = agent_executor.run(query_agent)
-            text.delete("1.0", tk.END)
-            text.insert(tk.END, make_test(result))
-            vajag_rules = False
-            ruleset = []
-            testmade = True
-            return print("izveidots test bez special rules, testmade set to True")
-            '''
-        elif rulesT == "nav":
+
+        elif arerules == False and vajag_rules == True:
             # Extract information from the database
-            query_agent = "Tell me thoroughly whats listed in the database. The criteria is following: The test must be in Latvian, you must cover ALL of the topics from the database. The database contains the following: Column 1 contains all of the topics the explanations for it, Column 2 contains example questions related to the corresponding topic in Column 1. You must start your final answer with 'Make a test using the information i'm giving you WITHOUT using the examples and creating your own tasks:' and then list the information youve found. This means you must output ALL relevant information so that the test can be created."
+            query_agent = "Tell me thoroughly whats listed in the database. The criteria is following: you must cover ALL of the topics from the database. The database contains the following: Column 1 contains all of the topics the explanations for it, Column 2 contains example questions related to the corresponding topic in Column 1. You must start your final answer with 'Make a test using the information i'm giving you WITHOUT using the examples and creating your own tasks:' and then list the information youve found. This means you must output ALL relevant information so that the test can be created."
             result = agent_executor.run(query_agent)
             vajag_rules = False
             structured_output = make_test(result)
             rulesT = ""
             testmade = True
             return render_template('index1.html', **structured_output)
-        elif vajag_rules == True:
-            query_agent = f"Tell me thoroughly whats listed in the database. The criteria is following: The test must be in Latvian, you must cover ALL of the topics from the database. The database contains the following: Column 1 contains all of the topics the explanations for it, Column 2 contains example questions related to the corresponding topic in Column 1. You must start your final answer with 'Make a test following these rules: {rulesT}, the test must be in latvian and the information i'm giving you WITHOUT copying the examples, create your own tasks:' and then list the information youve found. This means you must output ALL relevant information so that the test can be created."
+        elif arerules == True and vajag_rules == True:
+            query_agent = f"Tell me thoroughly whats listed in the database. The criteria is following: you must cover ALL of the topics from the database. The database contains the following: Column 1 contains all of the topics the explanations for it, Column 2 contains example questions related to the corresponding topic in Column 1. You must start your final answer with 'Make a test following these rules given by the user: '{rulesT}', and the information i'm giving you WITHOUT copying the examples, create your own tasks:' and then list the information youve found. This means you must output ALL relevant information so that the test can be created."
             result = agent_executor.run(query_agent)
             structured_output = make_test(result)
             vajag_rules = False
             testmade = True
             rulesT = ""
+            arerules = False
             return render_template('index1.html', **structured_output)
         
         elif classification == "conversational" or classification == "general" and vajag_rules == False:
@@ -281,7 +292,6 @@ def ask_something():
             answer = response.choices[0].message.content.strip()
             memory.append("SYSTEM: "+ answer)
             # Display the result in the text widget
-            print(testmade)
             if P2ConvHasBeenCalled:
                 testmade = True
             return render_template('index1.html', answer=answer)
@@ -290,31 +300,9 @@ def ask_something():
             result = agent_executor.run(query)
             # make the test and display the result in the text widget
             return render_template("index1.html", answer=result)
-
-if __name__ == '__main__':
-    app.run(host='93.127.186.126', port=3000)
-
-'''
-from flask import Flask, request, render_template
-
-app = Flask(__name__)
-
-@app.route('/')
-def home():
-    return render_template('index1.html')
-
-@app.route('/', methods=['POST'])
-def ask_something():
-    text = request.form['request']
-
-    #text goes to chatGPT
-    #chatGPT gives answer
-
-    answer = "Lorem ipsum odor amet, consectetuer adipiscing elit. Eu mus eros tempor nostra sapien habitasse. Duis porttitor inceptos orci tortor; fames eros. Interdum nostra potenti curae curae, neque ante fames sapien amet. Magnis laoreet urna dui aptent, dolor erat fermentum nam. Suscipit egestas maximus platea ullamcorper ante parturient commodo luctus aenean. Magna a cursus sociosqu est est quam. Mus sociosqu quisque sit viverra nascetur nulla tristique. Ultrices lacus gravida lobortis morbi tempor auctor consectetur velit. Litora mattis id ridiculus cubilia purus ultrices turpis mus."
-
-    return render_template('index1.html', answer=answer)
+        else:
+            return render_template('index1.html', answer="Sorry, I didn't understand your question.")
 
 if __name__ == '__main__':
     app.run(port=5000)
 
-'''
