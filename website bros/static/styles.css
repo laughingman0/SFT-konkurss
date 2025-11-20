@@ -1,156 +1,231 @@
 html, body {
     min-height: 16px;
 }
+
 body {
-    font-family: Arial, sans-serif;
-    background-color: #45474e;
-    margin:0;
-    /*#4C5578*/
+    font-family: "Inter", Arial, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    color: var(--text);
+    transition: background 0.4s ease, color 0.4s ease;
 }
 
+/* THEME VARIABLES */
+:root {
+    --bg: linear-gradient(145deg, #3b3d47, #202127);
+    --card: rgba(255, 255, 255, 0.06);
+    --card-2: rgba(255, 255, 255, 0.05);
+    --input-bg: rgba(255, 255, 255, 0.15);
+    --input-border: rgba(255, 255, 255, 0.4);
+    --button-bg: linear-gradient(135deg, #73d6ff, #7fffd4);
+    --button-bg-hover: linear-gradient(135deg, #5ec9ff, #6ef5c8);
+    --text: #ffffff;
+    --placeholder: #d6d6d6;
+}
+
+/* LIGHT THEME */
+.light {
+    --bg: linear-gradient(145deg, #ffffff, #dfe7ff);
+    --card: rgba(0, 0, 0, 0.05);
+    --card-2: rgba(0, 0, 0, 0.05);
+    --input-bg: rgba(0, 0, 0, 0.05);
+    --input-border: rgba(0,0,0,0.3);
+    --text: #222222;
+    --placeholder: #5a5a5a;
+    --button-bg: linear-gradient(135deg, #4da8ff, #00e2a9);
+    --button-bg-hover: linear-gradient(135deg, #3399ff, #00d79c);
+}
+
+/* THEME TOGGLE BUTTON */
+#theme-toggle {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--card);
+    padding: 12px 18px;
+    border-radius: 12px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    color: var(--text);
+    border: 1px solid var(--input-border);
+    font-size: 18px;
+    transition: 0.3s ease;
+    z-index: 1000;
+}
+
+#theme-toggle:hover {
+    transform: scale(1.08);
+    box-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+
+/* ---------- HEADINGS ---------- */
+
 h1 {
-    color: white;
+    color: var(--text);
     text-align: center;
-    font-size: 30px;
+    font-size: 32px;
 }
 
 h2 {
-    color: whitesmoke;
+    color: var(--text);
     text-align: center;
-    text-size-adjust: 20;
-}
-h3 {
-    color: whitesmoke;
-    margin: 8px 0;
-    text-size-adjust: 20;
-    text-align: center ;
-    font-size: 90px;
-    padding: 0;
+    font-weight: 600;
+    margin-top: 40px;
 }
 
-.container[id=Heading] {
+#header h3 {
+    color: var(--text);
+    margin: 8px 0;
+    text-align: center;
+    font-size: 90px;
     padding: 0;
-    margin: auto;
-    width: 50%;
-    padding-top: 25px;
+    text-shadow: 0 0 12px rgba(255,255,255,0.6);
 }
-.container[id=Box] {
-    /*max-width: 1000px;*/
+
+/* ---------- CONTAINERS ---------- */
+
+.container[id=Heading] {
+    padding-top: 40px;
     margin: auto;
-    width: 50%;
-    /*padding: 100px;*/
-    padding-bottom: 0px;
-    padding-top: 70px;
-    width: 1200px;
+    width: 60%;
+}
+
+.container[id=Box] {
+    margin: auto;
+    width: 100%;
+    max-width: 1100px;
+    padding-top: 50px;
+    padding-bottom: 30px;
+    text-align: center;
+
+    background: var(--card);
+    backdrop-filter: blur(12px);
+    border-radius: 20px;
+    box-shadow: 0 0 25px rgba(0,0,0,0.4);
 }
 
 .container {
-    max-width: 800px;
     margin: auto;
-    width: 50%;
+    width: 60%;
     padding: 100px;
-    
 }
+
 .container[id=TestSection] {
-    padding: 5px 5px;
-    margin : auto;
+    padding: 25px;
+    margin: 40px auto;
+    width: 90%;
+    max-width: 1100px;
     text-align: center;
-    width: 1000px;
+
+    background: var(--card-2);
+    border-radius: 20px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 0 20px rgba(255,255,255,0.1);
 }
+
+/* ---------- INPUTS ---------- */
 
 input[type="text"] {
-    width: 100%; /* Ensure it spans the container's width */
-    font-size: 3.5rem; /* Default font size */
-    padding: 12px; /* Default padding */
-    margin: 8px 0;
-    border-radius: 8px;
+    width: 100%;
+    font-size: 2.5rem;
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 15px;
     box-sizing: border-box;
-    border: 2px solid #ddd; /* Optional: Add a visible border */
+    border: 2px solid var(--input-border);
+    background: var(--input-bg);
+    color: var(--text);
+    backdrop-filter: blur(10px);
+    transition: 0.3s ease;
 }
+
+input[type="text"]::placeholder {
+    color: var(--placeholder);
+}
+
+input[type="text"]:focus {
+    border-color: #83ffe4;
+    background: rgba(255,255,255,0.25);
+    outline: none;
+    box-shadow: 0 0 12px #83ffe4;
+}
+
+/* ---------- BUTTON ---------- */
 
 input[type="submit"] {
-    width: 50%; /* Adjust width for better usability */
-    padding: 6px;
-    border-radius: 4px;
+    width: 50%;
+    padding: 12px;
+    border-radius: 10px;
     font-size: 2rem;
-    transition: background-color 0.1s;
-    margin: auto; /* Center the button */
-    display: block;
+    background: var(--button-bg);
+    border: none;
+    cursor: pointer;
+    transition: 0.25s ease-in-out;
+    color: black;
+    font-weight: 600;
 }
 
-
-
-
-input[type=submit]:hover {
-    background-color: hsl(140, 7%, 57%);
+input[type="submit"]:hover {
+    background: var(--button-bg-hover);
+    transform: scale(1.05);
+    box-shadow: 0 0 15px rgba(127,255,212,0.6);
 }
 
-p {
-    color: white;
-    text-align: justify;
-}
-li {
-    color: white;
-    text-align: justify;
+p, li {
+    color: var(--text);
     font-size: 20px;
 }
 
+li {
+    margin: 12px 0;
+}
+
+/* SPECIFIC OVERRIDES */
+
 .container[id=Box] input[type=text] {
-    font-size: 100; /* Increase font size */
-    padding: auto; /* Add more padding for a larger input field */
-    width: 100%;
+    font-size: 2.8rem;
 }
-.container[id=Box] input[type=submit]{
-    font-size: 100; /* Increase font size */
-    padding: auto; /* Add more padding for a larger input field */
-    width: 20%;
-    height: 10%;
-    min-height: 5px;
+
+.container[id=Box] input[type=submit] {
+    width: 30%;
 }
+
+/* ---------- MEDIA QUERIES ---------- */
 
 @media (max-width: 768px) {
-    input[type="text"] {
-        font-size: 2rem; /* Larger font size for better readability */
-        padding: 14px; /* Add more padding */
-    }
-    input[type="submit"] {
-        font-size: 1.8rem; /* Larger font size for submit button */
-        padding: 14px; /* Add more padding */
-        width: 80%; /* Expand the button for better tap area */
-    }
+    h3 { font-size: 60px; }
+    input[type="text"] { font-size: 1.8rem; padding: 16px; }
+    input[type="submit"] { font-size: 1.5rem; width: 80%; }
+    .container[id=Box] { width: 90%; padding: 20px; }
+    .container[id=TestSection] { width: 95%; }
 }
 
-/* For larger screens */
-@media (min-width: 1024px) {
-    input[type="text"] {
-        font-size: 2rem; /* Slightly larger font size for desktops */
-        padding: 16px; /* Add more padding */
-    }
-    input[type="submit"] {
-        font-size: 2rem; /* Consistent font size for submit button */
-        padding: 16px;
-        width: 30%; /* Narrower button for desktop */
-    }
-}
-/* Larger title for mobile devices */
-@media (max-width: 768px) {
-    h3 {
-        font-size: 60px; /* Increase font size for better visibility */
-        line-height: 1.2; /* Adjust line height for better spacing */
-        margin: 12px 0; /* Add some spacing above and below */
-    }
-}
-
-/* Title for very small screens (e.g., phones in portrait mode) */
 @media (max-width: 480px) {
-    h3 {
-        font-size: 50px; /* Slightly smaller for tiny screens */
-    }
+    h3 { font-size: 50px; }
 }
 
-/* Title for larger screens */
 @media (min-width: 1024px) {
-    h3 {
-        font-size: 50px; /* Maintain proportional size for desktop */
-    }
+    h3 { font-size: 70px; }
+    input[type="text"] { font-size: 2rem; }
+    input[type="submit"] { width: 30%; }
+}
+
+.answer mjx-container {
+    font-size: 1.5rem !important;
+}
+/* Stop enormous text from leaking into MathJax */
+.answer {
+    font-size: 1.5rem !important;
+}
+h3 {
+    font-size: inherit;
+}
+
+h4 {
+    color: var(--text);
+    margin: 8px 0;
+    text-align: center;
+    font-size: 90px;
+    padding: 0;
+    text-shadow: 0 0 12px rgba(255,255,255,0.6);
 }

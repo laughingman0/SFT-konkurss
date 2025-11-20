@@ -2,175 +2,122 @@
 <html lang="en">
 <meta charset="UTF-8">
 <head>
-    <title>TeacherBro</title>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: false,
+                tags: 'none'
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+                ignoreHtmlClass: 'no-mathjax'
+            },
+            chtml: {
+                displayAlign: 'center',
+                displayIndent: '2em'
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
-        /* Hide all headings and elements initially */
-        .type-target {
-            visibility: hidden;
-        }
+        .type-target { visibility: hidden; }
+        #TestSection { margin-top: 20px; padding: 18px; border-radius: 8px; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.06);}
+        #TestSection h2 { margin-top: 12px; margin-bottom: 8px; }
+        #task-list li { margin-bottom: 10px; line-height: 1.45; }
+        .sub-list { margin-left: 18px; margin-top: 6px; }
+        .answer { white-space: pre-wrap; margin-top: 14px; }
     </style>
 </head>
 <body>
+
+    <div id="theme-toggle">🌙</div>
+
     <div class="container" id="Heading">
-        <h3>TeacherBro</h3>
+        <h4>TeacherBro</h4>
     </div>
+
     <div class="container" id="Box">
         <h1><span class="auto-type"></span></h1>
+
         <form method="POST">
             <input type="text" placeholder="Ask me anything!" id="request_form" name="request">
             <input type="submit" value="Ask">
         </form>
-        <p>{{ answer }}</p>
-    </div>
 
-    {% if TestName or Context_for_tasks_and_tasks_themselves or conclusions %}
-    <div class="container" id="TestSection">
-        {% if TestName %}
-        <h2 class="type-target" id="test-name-heading">Test Name</h2>
-        <p class="type-target" id="test-name">{{ TestName }}</p>
-        {% endif %}
-
-        {% if Context_for_tasks_and_tasks_themselves %}
-        <h2 class="type-target" id="tasks-heading">Context for Tasks and Tasks Themselves</h2>
-        <ul id="task-list">
-            {% for task in Context_for_tasks_and_tasks_themselves %}
-                <li class="type-target task-item">{{ task }}</li>
-            {% endfor %}
-        </ul>
-        {% endif %}
-
-        {% if conclusions %}
-        <h2 class="type-target" id="conclusions-heading">Conclusions</h2>
-        <p class="type-target" id="conclusions">{{ conclusions }}</p>
+        {% if answer %}
+            <div class="answer" id="math-content">{{ answer }}</div>
         {% endif %}
     </div>
-    {% endif %}
 
     <script src="https://unpkg.com/typed.js@2.1.0/dist/typed.umd.js"></script>
+
     <script>
-        // Add typing effect for the main title
-        new Typed(".auto-type", {
-            strings: ["How can TeacherBro help you? ", "How can TeacherBro assist you? "],
-            typeSpeed: 25,
-            backSpeed: 25,
-            loop: true
+        // Function to render MathJax
+        function renderMath() {
+            if (window.MathJax) {
+                MathJax.typesetClear();
+                MathJax.typesetPromise().catch(err => {
+                    console.log('MathJax error:', err);
+                    // If MathJax fails, at least show the content
+                    document.querySelectorAll('.answer').forEach(el => {
+                        el.style.visibility = 'visible';
+                    });
+                });
+            }
+        }
+
+        // Render math when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial render after a short delay
+            setTimeout(renderMath, 100);
+            
+            // Also render if there's existing content
+            const mathContent = document.getElementById('math-content');
+            if (mathContent && mathContent.textContent) {
+                renderMath();
+            }
         });
 
-        // Dynamically type headings and content in sequence
-        const testNameHeading = document.querySelector('#test-name-heading');
-        const testNameElement = document.querySelector('#test-name');
-        const tasksHeading = document.querySelector('#tasks-heading');
-        const tasks = document.querySelectorAll('.task-item');
-        const conclusionsHeading = document.querySelector('#conclusions-heading');
-        const conclusionsElement = document.querySelector('#conclusions');
-        let currentIndex = 0;
+        // Typed.js animation
+        new Typed(".auto-type", {
+            strings: [
+                "How can TeacherBro help you today?",
+                "What can I assist you with?",
+                "Ask me anything!",
+            ],
+            typeSpeed: 65,
+            backSpeed: 30,
+            backDelay: 1200,
+            startDelay: 400,
+            loop: true,
+            fadeOut: true,
+            fadeOutDelay: 400
+        });
 
-        function typeTestNameHeading() {
-            if (testNameHeading) {
-                testNameHeading.style.visibility = 'visible';
-                const text = testNameHeading.textContent;
-                testNameHeading.textContent = ''; // Clear text for animation
-                new Typed(testNameHeading, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false,
-                    onComplete: () => typeTestName() // Proceed to Test Name content
-                });
+        // Theme toggle
+        const toggle = document.getElementById("theme-toggle");
+        const body = document.body;
+
+        if (localStorage.getItem("theme") === "light") {
+            body.classList.add("light");
+            toggle.textContent = "🌙";
+        }
+
+        toggle.addEventListener("click", () => {
+            body.classList.toggle("light");
+            if (body.classList.contains("light")) {
+                toggle.textContent = "🌙";
+                localStorage.setItem("theme", "light");
             } else {
-                typeTasksHeading(); // Skip to Tasks Heading if Test Name Heading is not present
+                toggle.textContent = "☀️";
+                localStorage.setItem("theme", "dark");
             }
-        }
-
-        function typeTestName() {
-            if (testNameElement) {
-                testNameElement.style.visibility = 'visible';
-                const text = testNameElement.textContent;
-                testNameElement.textContent = ''; // Clear text for animation
-                new Typed(testNameElement, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false,
-                    onComplete: () => typeTasksHeading() // Proceed to Tasks Heading
-                });
-            } else {
-                typeTasksHeading(); // Skip to Tasks Heading if Test Name is not present
-            }
-        }
-
-        function typeTasksHeading() {
-            if (tasksHeading) {
-                tasksHeading.style.visibility = 'visible';
-                const text = tasksHeading.textContent;
-                tasksHeading.textContent = ''; // Clear text for animation
-                new Typed(tasksHeading, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false,
-                    onComplete: () => typeNextTask() // Proceed to tasks
-                });
-            } else {
-                typeNextTask(); // Skip to Tasks if Tasks Heading is not present
-            }
-        }
-
-        function typeNextTask() {
-            if (currentIndex < tasks.length) {
-                const task = tasks[currentIndex];
-                task.style.visibility = 'visible';
-                const text = task.textContent;
-                task.textContent = ''; // Clear text for animation
-                new Typed(task, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false,
-                    onComplete: () => {
-                        currentIndex++;
-                        typeNextTask(); // Proceed to the next task
-                    }
-                });
-            } else {
-                typeConclusionsHeading(); // Proceed to Conclusions Heading when tasks are done
-            }
-        }
-
-        function typeConclusionsHeading() {
-            if (conclusionsHeading) {
-                conclusionsHeading.style.visibility = 'visible';
-                const text = conclusionsHeading.textContent;
-                conclusionsHeading.textContent = ''; // Clear text for animation
-                new Typed(conclusionsHeading, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false,
-                    onComplete: () => typeConclusions() // Proceed to Conclusions content
-                });
-            } else {
-                typeConclusions(); // Skip to Conclusions if Conclusions Heading is not present
-            }
-        }
-
-        function typeConclusions() {
-            if (conclusionsElement) {
-                conclusionsElement.style.visibility = 'visible';
-                const text = conclusionsElement.textContent;
-                conclusionsElement.textContent = ''; // Clear text for animation
-                new Typed(conclusionsElement, {
-                    strings: [text],
-                    typeSpeed: 1,
-                    backSpeed: 1,
-                    loop: false
-                });
-            }
-        }
-
-        // Start typing from Test Name Heading
-        typeTestNameHeading();
+            setTimeout(renderMath, 200);
+        });
     </script>
+
 </body>
 </html>
