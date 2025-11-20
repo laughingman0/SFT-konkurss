@@ -3,7 +3,8 @@ import os
 import sqlite3
 import html
 import re
-from flask import Flask, request, render_template, redirect, url_for
+import secrets
+from flask import Flask, request, render_template, redirect, url_for, session
 from functools import wraps
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -17,16 +18,74 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 app = Flask(__name__, template_folder="templates")
+app.secret_key = "teacherbro-super-secure-key-2024-" + secrets.token_hex(16)
 
 # -------------------------
-# App State
+# Session-based state management
 # -------------------------
-memory = []
-test_fragments = []
-solution_cache = []
-rules_text = ""
-need_rules = False
-test_made = False
+def init_user_session():
+    """Initialize session variables for a new user"""
+    if 'test_fragments' not in session:
+        session['test_fragments'] = []
+    if 'solution_cache' not in session:
+        session['solution_cache'] = []
+    if 'need_rules' not in session:
+        session['need_rules'] = False
+    if 'test_made' not in session:
+        session['test_made'] = False
+    if 'rules_text' not in session:
+        session['rules_text'] = ""
+
+def get_user_test_fragments():
+    return session.get('test_fragments', [])
+
+def set_user_test_fragments(fragments):
+    session['test_fragments'] = fragments
+
+def get_user_solution_cache():
+    return session.get('solution_cache', [])
+
+def set_user_solution_cache(cache):
+    session['solution_cache'] = cache
+
+def get_user_need_rules():
+    return session.get('need_rules', False)
+
+def set_user_need_rules(value):
+    session['need_rules'] = value
+
+def get_user_test_made():
+    return session.get('test_made', False)
+
+def set_user_test_made(value):
+    session['test_made'] = value
+
+def get_user_rules_text():
+    return session.get('rules_text', "")
+
+def set_user_rules_text(value):
+    session['rules_text'] = value
+
+# -------------------------
+# Simplified rules check
+# -------------------------
+def check_for_rules(message):
+    """Simplified rules check - just detect if user explicitly says no rules"""
+    message_lower = message.lower()
+    
+    # Check for explicit "no rules" phrases
+    no_rules_phrases = [
+        "no rules", "no criteria", "without rules", "any", "whatever",
+        "doesn't matter", "doesnt matter", "no preference", "no specific",
+        "surprise me", "you choose", "your choice", "anything"
+    ]
+    
+    for phrase in no_rules_phrases:
+        if phrase in message_lower:
+            return "no rules"
+    
+    # If none of the above, assume user provided rules
+    return "has rules"
 
 # -------------------------
 # DB
@@ -142,6 +201,7 @@ def clean_math_response(text: str) -> str:
     text = re.sub(r' +', ' ', text)
     
     return text.strip()
+
 # -------------------------
 # Classification
 # -------------------------
@@ -156,8 +216,10 @@ def classify_question(user_question: str) -> str:
         {"role": "user", "content": prompt}
     ]
     try:
-        out = query_openai_chat(messages, model="gpt-4o-mini", temperature=1)
-        return out.strip().lower().split()[0]
+        out = query_openai_chat(messages, model="gpt-4o-mini", temperature=0)
+        classification = out.strip().lower().split()[0]
+        print(f"Classified '{user_question}' as: {classification}")
+        return classification
     except Exception:
         q = user_question.lower()
         if "test" in q or "izveido" in q:
@@ -183,7 +245,7 @@ def make_test_from_db(rules: str | None = None):
         for r in db_content[:200]:
             db_text += repr(r) + "\n"
 
-    rule_intro = f"Follow these rules while making the test, if there are none, proceed without rules: {rules}\n" if rules else ""
+    rule_intro = f"Follow these rules while making the test: {rules}\n" if rules else ""
 
     prompt = (
         rule_intro
@@ -203,18 +265,24 @@ def make_test_from_db(rules: str | None = None):
     )
 
     messages = [
-        {"role": "system", "content": "You create math tests using ONLY $...$ for inline math and $$...$$ for display math. Never use other LaTeX commands or include error messages."},
+        {"role": "system", "content": "You are an educational AI called Synesis - you create math tests using ONLY $...$ for inline math and $$...$$ for display math. Never use other LaTeX commands or include error messages."},
         {"role": "user", "content": prompt}
     ]
 
     response = query_openai_chat(messages)
-    test_fragments.append(response)
+    
+    # Store in user's session
+    current_fragments = get_user_test_fragments()
+    current_fragments.append(response)
+    set_user_test_fragments(current_fragments)
+    
     return response
 
 # -------------------------
 # Solve test
 # -------------------------
 def solve_test_fragments():
+    test_fragments = get_user_test_fragments()
     if not test_fragments:
         return "Nav izveidots tests."
     combined = "\n\n".join(test_fragments)
@@ -223,7 +291,7 @@ def solve_test_fragments():
         {"role": "system", "content": "You solve tests accurately.  When using LaTeX math, always use \\( ... \\) for inline math or $$...$$ for block math. Never escape backslashes. Output RAW LaTeX."},
         {"role": "system", "content": """Important:
             - NEVER include LaTeX compiler errors such as 
-            “You can't use 'macro parameter character #' in math mode”
+            "You can't use 'macro parameter character #' in math mode"
             or any messages describing TeX problems.
             - NEVER include debug comments, warnings, or explanations of LaTeX.
             - ONLY output clean, valid MathJax-compatible LaTeX using \( ... \) or $$ ... $$.
@@ -233,7 +301,12 @@ def solve_test_fragments():
         {"role": "user", "content": prompt}
     ]
     out = query_openai_chat(messages)
-    solution_cache.append(out)
+    
+    # Store in user's session
+    current_cache = get_user_solution_cache()
+    current_cache.append(out)
+    set_user_solution_cache(current_cache)
+    
     print(out)
     return out
 
@@ -241,10 +314,11 @@ def solve_test_fragments():
 # Inquiry about test
 # -------------------------
 def answer_inquiry_about_test(question: str):
+    test_fragments = get_user_test_fragments()
     context = "\n\n".join(test_fragments)
     prompt = f"Test context:\n{context}\n\nUser asks: {question}"
     messages = [
-        {"role": "system", "content": "You answer questions about the test."},
+        {"role": "system", "content": "You are an educational AI named Synesis that answers questions about the test."},
         {"role": "user", "content": prompt}
     ]
     return query_openai_chat(messages)
@@ -254,90 +328,114 @@ def answer_inquiry_about_test(question: str):
 # -------------------------
 @app.route("/", methods=["GET"])
 def index():
-    
+    init_user_session()  # Initialize session for this user
     return render_template("index1.html")
 
 @app.errorhandler(500)
 def internal_err(e):
-    global need_rules, rules_text, test_made
-    need_rules = False
-    rules_text = ""
-    test_made = False
+    # Reset only this user's session
+    init_user_session()
     return redirect(url_for("index")), 500
 
 @app.route("/", methods=["POST"])
 def handle_post():
-    global need_rules, rules_text, test_made, test_fragments, solution_cache
-
+    # Initialize user session at the start of each request
+    init_user_session()
+    
     user_input = request.form.get("request", "").strip()
     if not user_input:
         return render_template("index1.html")
 
-    memory.append("USER: " + user_input)
+    # Get current user's state from session
+    need_rules = get_user_need_rules()
+    test_made = get_user_test_made()
+    
     classification = classify_question(user_input)
-    print(classification)
+    print(f"DEBUG - Classification: '{classification}', need_rules: {need_rules}, test_made: {test_made}")
 
-    if test_made:
+    # SIMPLIFIED LOGIC FLOW:
+    
+    # Case 1: User asks for a test for the first time
+    if classification == "test" and not test_made and not need_rules:
+        print("DEBUG - Starting new test creation")
+        set_user_need_rules(True)
+        set_user_test_made(False)
+        set_user_test_fragments([])
+        set_user_solution_cache([])
+        return render_template("index1.html", answer="Is there any specific criteria for the test?")
+    
+    # Case 2: User is providing rules for a test
+    elif need_rules:
+        print(f"DEBUG - Processing rules input: '{user_input}'")
+        rules_check = check_for_rules(user_input)
+        print(f"DEBUG - Rules check result: '{rules_check}'")
+        
+        if rules_check == "no rules":
+            print("DEBUG - Creating test without specific rules")
+            result = make_test_from_db(None)
+        else:
+            print(f"DEBUG - Creating test with rules: '{user_input}'")
+            result = make_test_from_db(user_input)
+
+        set_user_need_rules(False)
+        set_user_test_made(True)
+        result = clean_math_response(result)
+        from markdown import markdown
+        html_result = markdown(result, extensions=['fenced_code', 'nl2br', "md_in_html"])
+        from markupsafe import Markup
+        return render_template("index1.html", answer=Markup(html_result))
+    
+    # Case 3: Test already exists, handle various requests
+    elif test_made:
         if classification == "inquiry":
             ans = answer_inquiry_about_test(user_input)
-            ans = clean_math_response(ans)  # This should now preserve valid math
+            ans = clean_math_response(ans)
             from markdown import markdown
             html_answer = markdown(ans, extensions=['fenced_code', 'nl2br', "md_in_html"])
             from markupsafe import Markup
             return render_template("index1.html", answer=Markup(html_answer))
 
-        if classification == "solution":
+        elif classification == "solution":
             ans = solve_test_fragments()
-            ans = clean_math_response(ans)  # This should now preserve valid math
+            ans = clean_math_response(ans)
             from markdown import markdown
             html_answer = markdown(ans, extensions=['fenced_code', 'nl2br', "md_in_html"])
             from markupsafe import Markup
             return render_template("index1.html", answer=Markup(html_answer))
 
-        if classification == "general":
+        elif classification == "test":
+            # User wants a new test - reset this user's session
+            print("DEBUG - Creating new test (replacing existing)")
+            set_user_test_fragments([])
+            set_user_solution_cache([])
+            set_user_need_rules(True)
+            set_user_test_made(False)
+            return render_template("index1.html", answer="Is there any specific criteria for the test?")
+
+        else:  # general or anything else
             ans = query_openai_chat([
-                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "system", "content": "You are an educational AI called Synesis - a helpful assistant."},
                 {"role": "user", "content": user_input}
             ])
             ans = clean_math_response(ans)
             return render_template("index1.html", answer=ans)
-
-        if classification == "test":
-            test_fragments = []
-            solution_cache = []
-            need_rules = True
-            test_made = False
-            return render_template("index1.html", answer="Ievadi testu veidošanas kritērijus.")
-
-    # -------- PHASE 1: no test yet --------
-    if classification == "test":
-        need_rules = True
-        return render_template("index1.html", answer="Ievadi testu veidošanas kritērijus ('nav', ja nav).")
-
-    if need_rules:
-        if user_input.lower() == "nav":
-            result = make_test_from_db(None)
+    
+    # Case 4: No test context, handle general requests
+    else:
+        if classification == "inquiry":
+            db_preview = read_db_all("mathdb2.db")
+            ans = query_openai_chat([
+                {"role": "system", "content": "You answer database-related questions."},
+                {"role": "user", "content": f"User asks: {user_input}\nDB:\n{str(db_preview)[:1500]}"}
+            ])
+            return render_template("index1.html", answer=ans)
         else:
-            result = make_test_from_db(user_input)
-
-        need_rules = False
-        test_made = True
-        return render_template("index1.html", answer=result)
-
-    if classification == "inquiry":
-        db_preview = read_db_all("mathdb2.db")
-        ans = query_openai_chat([
-            {"role": "system", "content": "You answer database-related questions."},
-            {"role": "user", "content": f"User asks: {user_input}\nDB:\n{str(db_preview)[:1500]}"}
-        ])
-        return render_template("index1.html", answer=ans)
-
-    # general chat fallback
-    ans = query_openai_chat([
-        {"role": "system", "content": "You are a helpful assistant."},
-        {"role": "user", "content": user_input}
-    ])
-    return render_template("index1.html", answer=ans)
+            # general chat fallback
+            ans = query_openai_chat([
+                {"role": "system", "content": "You are an educational AI called Synesis - a helpful assistant."},
+                {"role": "user", "content": user_input}
+            ])
+            return render_template("index1.html", answer=ans)
 
 if __name__ == "__main__":
     if not os.path.exists("mathdb2.db") and os.path.exists("mathdb_new_new.sql"):

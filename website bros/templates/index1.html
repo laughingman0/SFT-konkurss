@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>TeacherBro</title>
+  <title>Synesis AI</title>
 
   <!-- MathJax config (preserve $ and $$) -->
   <script>
@@ -21,6 +21,15 @@
       chtml: {
         displayAlign: 'center',
         displayIndent: '2em'
+      },
+      startup: {
+        // mark readiness when MathJax finishes loading
+        ready: () => {
+          MathJax.startup.defaultReady();
+          MathJax.startup.promise.then(() => {
+            window.mathJaxReady = true;
+          });
+        }
       }
     };
   </script>
@@ -30,6 +39,62 @@
   <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
 
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <style>
+    /* Add horizontal scrolling for math elements */
+    .math-container {
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding: 8px 0;
+      margin: 8px 0;
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+
+    .math-container::-webkit-scrollbar {
+      height: 6px;
+    }
+    .math-container::-webkit-scrollbar-thumb {
+      background: rgba(255,255,255,0.25);
+      border-radius: 4px;
+    }
+
+    /* Ensure MathJax elements are scrollable */
+    .mjx-chtml {
+      max-width: 100% !important;
+      overflow-x: auto !important;
+    }
+
+    /* Hidden pre-render container */
+    #pre-rendered-content {
+      display: none; /* stay hidden while MathJax does its work */
+      visibility: hidden;
+      position: absolute;
+      left: -9999px;
+      top: -9999px;
+      width: 90vw; /* make sure it has a reasonable width for wrapping */
+      max-width: 1200px;
+    }
+
+    /* Ensure answer container doesn't introduce horizontal clipping */
+    .answer {
+      max-width: 100%;
+      overflow-x: hidden;
+      word-break: break-word;
+      white-space: pre-wrap;
+    }
+
+    /* Mobile tweaks */
+    @media (max-width: 768px) {
+      .math-container { padding: 12px 0; margin: 8px 0; }
+      .answer { word-wrap: break-word; overflow-wrap: break-word; }
+    }
+
+    /* Small helper: when copying nodes we want them to appear smoothly */
+    .answer > * {
+      margin: 6px 0;
+    }
+  </style>
   <script>
     // Prevent flash-of-incorrect-theme
     if (localStorage.getItem('theme') === 'light') document.documentElement.classList.add('light');
@@ -60,12 +125,11 @@
   <!-- Help modal -->
   <div class="modal-backdrop" id="help-backdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title" tabindex="-1">
-      <h2 id="help-title">How to use TeacherBro</h2>
+      <h2 id="help-title">How to use Synesis</h2>
       <ol>
         <li>Type a question in the floating input and press <strong>Ask</strong>.</li>
-        <li>To create a test type <strong>test</strong>, then provide rules when prompted.</li>
+        <li>To create a test type <strong>make me a test</strong>, then provide rules when prompted.</li>
         <li>To get solutions, type <strong>solution</strong> or ask about a specific question.</li>
-        <li>Math uses <code>$...$</code> and <code>$$...$$</code>.</li>
       </ol>
       <p class="muted">The input stays visible on mobile. If a formula is wide it will allow internal scrolling without breaking the page.</p>
       <div class="modal-actions">
@@ -77,9 +141,9 @@
 
   <main class="site">
     <header class="site-header container">
-      <h4>TeacherBro</h4>
+      <h4>Synesis AI</h4>
       <h1>
-        <span class="auto-type">How can TeacherBro help you today?</span>
+        <span class="auto-type">How can Synesis help you today?</span>
       </h1>
     </header>
 
@@ -95,12 +159,15 @@
         <p class="loading-text">Thinking...</p>
       </div>
 
+      <!-- Hidden pre-rendered content (used to let MathJax render off-screen) -->
+      <div id="pre-rendered-content" aria-hidden="true"></div>
+
       <!-- Answer content -->
       {% if answer %}
-        <div class="answer" id="math-content" data-full-answer="{{ answer|e }}"></div>
+        <div class="answer" id="math-content" data-full-answer="{{ answer }}"></div>
       {% else %}
         <div class="answer placeholder" id="math-content">
-          Ask me anything — try: "Create a test", "Solve question 2", or "Explain Bayes' theorem".
+          Ask me anything — try: "Create a test", *currently only creates tests about probability.
         </div>
       {% endif %}
     </section>
@@ -112,7 +179,7 @@
   </main>
 
   <!-- Floating, centered pill input (choice B) -->
-  <form method="POST" id="query-form" class="floating-input" role="search" aria-label="Ask TeacherBro">
+  <form method="POST" id="query-form" class="floating-input" role="search" aria-label="Ask Synesis">
     <input id="request_input" name="request" type="text" inputmode="text"
            placeholder="Ask me anything..." autocomplete="off" aria-label="Ask a question">
     <input type="submit" value="Ask" aria-label="Submit question">
@@ -127,80 +194,185 @@
     const $ = s => document.querySelector(s);
     const $$ = s => Array.from(document.querySelectorAll(s));
 
-    // Loading spinner functions
+    // ----------------------
+    // Scroll / user interaction tracking
+    // ----------------------
+    let shouldAutoScroll = true;
+    let userManuallyScrolled = false;
+
+    function initScrollTracking() {
+      shouldAutoScroll = true;
+      userManuallyScrolled = false;
+
+      const handleUserScroll = () => {
+        if (!userManuallyScrolled) {
+          userManuallyScrolled = true;
+          shouldAutoScroll = false;
+        }
+      };
+
+      window.addEventListener('wheel', handleUserScroll, { passive: true });
+      window.addEventListener('touchstart', handleUserScroll, { passive: true });
+      window.addEventListener('scroll', handleUserScroll, { passive: true });
+
+      // If user returns to bottom, resume auto-scroll
+      const checkIfAtBottom = () => {
+        if (userManuallyScrolled) {
+          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+          const scrollHeight = document.documentElement.scrollHeight;
+          const clientHeight = document.documentElement.clientHeight;
+          if (scrollTop + clientHeight >= scrollHeight - 120) {
+            userManuallyScrolled = false;
+            shouldAutoScroll = true;
+          }
+        }
+      };
+      setInterval(checkIfAtBottom, 250);
+    }
+
+    function scrollToAnswer() {
+      if (!shouldAutoScroll) return;
+      const answerElement = document.getElementById('math-content');
+      if (!answerElement) return;
+      // Prefer smooth page scroll to keep header visible
+      answerElement.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' });
+    }
+
+    // ----------------------
+    // Loading spinner utilities
+    // ----------------------
     function showLoading() {
         const spinner = document.getElementById('loading-spinner');
         const answer = document.getElementById('math-content');
-        const box = document.getElementById('Box');
-        
         if (spinner && answer) {
             spinner.classList.add('active');
             answer.classList.add('hidden');
-            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // start tracking scroll for this new content
+            initScrollTracking();
         }
     }
 
     function hideLoading() {
         const spinner = document.getElementById('loading-spinner');
         const answer = document.getElementById('math-content');
-        
         if (spinner && answer) {
             spinner.classList.remove('active');
             answer.classList.remove('hidden');
         }
     }
 
-    // Typewriter effect for answers
-    function typeAnswer(element, text, speed = 20) {
-        return new Promise((resolve) => {
-            let index = 0;
-            element.innerHTML = ''; // Clear existing content
-            
-            function typeChar() {
-                if (index < text.length) {
-                    // Add next character
-                    element.innerHTML += text[index];
-                    index++;
-                    
-                    // Scroll to keep visible
-                    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                    
-                    // Schedule next character
-                    setTimeout(typeChar, speed);
-                } else {
-                    // Finished typing
-                    resolve();
-                }
-            }
-            
-            typeChar();
-        });
+    // ----------------------
+    // Wrap rendered MathJax nodes with horizontal scrollers
+    // ----------------------
+    function wrapMathJaxElements(container) {
+      // wrap mjx-container or .mjx-chtml elements for robust coverage
+      // prefer wrapping the top-level math element node produced by MathJax
+      container.querySelectorAll('.mjx-chtml, mjx-container').forEach(mathEl => {
+        // find the true parent where we can insert a wrapper
+        const parent = mathEl.parentElement;
+        if (!parent) return;
+        if (parent.classList.contains('math-container')) return; // already wrapped
+
+        // Create wrapper and move mathEl into it
+        const wrapper = document.createElement('div');
+        wrapper.className = 'math-container';
+        parent.insertBefore(wrapper, mathEl);
+        wrapper.appendChild(mathEl);
+      });
     }
 
-    // Process answers with typewriter effect
+    // ----------------------
+    // Typewriter: copy pre-rendered nodes one-by-one to visible container
+    // ----------------------
+    function typeAnswerFromPreRendered(visibleEl, preRenderedEl, speedMs = 30) {
+      return new Promise((resolve) => {
+        const nodes = Array.from(preRenderedEl.childNodes);
+        let i = 0;
+
+        function appendNext() {
+          if (i >= nodes.length) {
+            resolve();
+            return;
+          }
+
+          // Clone node (deep) to move into visible area. Cloning avoids reparenting the original.
+          const clone = nodes[i].cloneNode(true);
+          visibleEl.appendChild(clone);
+
+          // Keep visible scrolled to bottom unless user scrolled away
+          scrollToAnswer();
+
+          i++;
+          setTimeout(appendNext, speedMs);
+        }
+
+        appendNext();
+      });
+    }
+
+    // ----------------------
+    // Main processing: render off-screen then stream rendered nodes
+    // ----------------------
     function processAnswer() {
-        const answerElement = document.getElementById('math-content');
-        if (!answerElement) return;
-        
-        const fullAnswer = answerElement.getAttribute('data-full-answer');
-        if (!fullAnswer) return;
-        
-        // Clear the element and start typing
-        answerElement.innerHTML = '';
-        answerElement.removeAttribute('data-full-answer');
-        
-        typeAnswer(answerElement, fullAnswer, 5).then(() => {
-            // After typing is complete, render MathJax
-            setTimeout(() => {
-                if (window.MathJax) {
-                    MathJax.typesetClear();
-                    MathJax.typesetPromise().catch(err => console.warn('MathJax error', err));
-                }
-            }, 100);
-        });
+      const answerElement = document.getElementById('math-content');
+      if (!answerElement) return;
+
+      const fullAnswer = answerElement.getAttribute('data-full-answer');
+      if (!fullAnswer) return;
+
+      // Clear visible answer and ensure it's hidden while we prepare
+      answerElement.innerHTML = '';
+      answerElement.removeAttribute('data-full-answer');
+
+      const preRenderedDiv = document.getElementById('pre-rendered-content');
+      // Clear and set the HTML to let MathJax process it off-screen
+      preRenderedDiv.innerHTML = fullAnswer;
+
+      // Show loading spinner while preparing
+      showLoading();
+
+      // Wait for MathJax to be ready and typeset the hidden container
+      const doTypeset = async () => {
+        if (window.MathJax && window.mathJaxReady) {
+          try {
+            await MathJax.typesetPromise([preRenderedDiv]);
+            // Wrap any math nodes with horizontal scrollers (in the pre-rendered DOM)
+            wrapMathJaxElements(preRenderedDiv);
+            // Now stream the rendered nodes into the visible container
+            // Use a readable typing speed that you can tweak
+            const typingSpeed = 28; // ms between elements; increase to slow down
+            await typeAnswerFromPreRendered(answerElement, preRenderedDiv, typingSpeed);
+
+            // After streaming finish, hide the loading spinner and final wrap in the visible DOM as well
+            wrapMathJaxElements(answerElement);
+          } catch (err) {
+            console.warn('MathJax rendering failed:', err);
+            // fallback: show raw HTML (best-effort)
+            answerElement.innerHTML = preRenderedDiv.innerHTML;
+          } finally {
+            hideLoading();
+            // final scroll to answer
+            scrollToAnswer();
+          }
+        } else {
+          // MathJax not loaded — fallback: insert raw HTML and stream that
+          console.warn('MathJax not ready; inserting raw content');
+          // create a temporary container with simple nodes
+          const tmp = document.createElement('div');
+          tmp.innerHTML = preRenderedDiv.innerHTML;
+          await typeAnswerFromPreRendered(answerElement, tmp, 20);
+          hideLoading();
+          scrollToAnswer();
+        }
+      };
+
+      // Kick off typeset with a small safety delay to allow UI to update
+      setTimeout(doTypeset, 30);
     }
 
-    // Theme toggle
+    // ----------------------
+    // Theme toggle and UI bits (unchanged)
+    // ----------------------
     const themeBtn = $('#theme-toggle');
     const root = document.documentElement;
     function refreshThemeUI(){
@@ -212,11 +384,11 @@
       root.classList.toggle('light');
       localStorage.setItem('theme', root.classList.contains('light') ? 'light' : 'dark');
       refreshThemeUI();
-      setTimeout(() => { if (window.MathJax) MathJax.typesetPromise(); }, 120);
+      setTimeout(() => { if (window.MathJax && window.mathJaxReady) MathJax.typesetPromise().catch(()=>{}); }, 120);
     });
     refreshThemeUI();
 
-    // Modal utilities
+    // Modal utilities (unchanged)
     function openModal(backdrop){
       backdrop.style.display = 'flex';
       backdrop.setAttribute('aria-hidden', 'false');
@@ -230,7 +402,6 @@
       document.body.style.overflow = '';
     }
 
-    // Help modal
     const helpToggle = $('#help-toggle'), helpBackdrop = $('#help-backdrop'), helpClose = $('#help-close');
     helpToggle.addEventListener('click', () => openModal(helpBackdrop));
     helpClose && helpClose.addEventListener('click', () => closeModal(helpBackdrop));
@@ -242,7 +413,6 @@
       try {
         if (sessionStorage.getItem('disclaimer_shown') === 'true') return;
       } catch(e){}
-      // show after tiny delay so page layout is ready
       setTimeout(() => openModal(discBackdrop), 240);
     })();
     discAccept && discAccept.addEventListener('click', () => {
@@ -262,48 +432,33 @@
       }
     });
 
-    // MathJax and responsive math blocks
-    function safeTypeset(){
-      if (!window.MathJax) return;
-      MathJax.typesetClear();
-      MathJax.typesetPromise().catch(err => console.warn('MathJax error', err));
-    }
-
     // Keep floating input visible after server response and avoid softlock
     const input = $('#request_input');
     const form = $('#query-form');
-    // Focus the input on load for convenience
     input && input.focus();
 
-    // Form submission with loading spinner
     form.addEventListener('submit', (e) => {
       const submit = form.querySelector('input[type="submit"]');
-      
-      // Show loading spinner
       showLoading();
-      
       if (submit) {
         submit.disabled = true;
         submit.value = 'Thinking...';
       }
     });
 
-    // Bug report: simple mailto prefill (placeholder)
+    // Bug report link
     const bugLink = $('#bug-report');
     if (bugLink) {
-      // customize email / issue tracker here
-      bugLink.href = 'mailto:markussgrods@gmail.com?subject=TeacherBro%20bug%20report';
+      bugLink.href = 'mailto:markussgrods@gmail.com?subject=Synesis%20bug%20report';
     }
 
-    // Adjust floating input when virtual keyboard opens on mobile:
-    // mobile browsers often resize viewport; using resize event to nudge input.
+    // Keyboard adjustments for mobile input
     let origVH = window.innerHeight;
     function adjustForKeyboard(){
-      // If viewport shrinks substantially, nudge the floating input up
       const vh = window.innerHeight;
       const inputEl = document.querySelector('.floating-input');
       if (!inputEl) return;
-      if (vh < origVH - 120) { // keyboard likely open
+      if (vh < origVH - 120) {
         inputEl.classList.add('keyboard-open');
       } else {
         inputEl.classList.remove('keyboard-open');
@@ -311,28 +466,26 @@
     }
     window.addEventListener('resize', adjustForKeyboard);
 
-    // Initialize when page loads
+    // Initialize on load
     document.addEventListener('DOMContentLoaded', () => {
-      hideLoading(); // Ensure loading is hidden on initial load
-      
-      // Process answer with typewriter effect if there is one
-      setTimeout(() => {
-        processAnswer();
-      }, 300);
+      hideLoading();
+      initScrollTracking();
+
+      // Slight delay to ensure templates render; then process if there's an answer
+      setTimeout(processAnswer, 300);
     });
 
-    // Also process answer when navigating back/forward
     window.addEventListener('pageshow', () => {
       setTimeout(processAnswer, 100);
     });
-
   </script>
+
   <script>
-    /* Simple stable typewriter - NO SHAKING */
+    /* Simple stable typewriter - NO SHAKING for header */
     document.addEventListener("DOMContentLoaded", () => {
         const element = document.querySelector(".auto-type");
         const messages = [
-            "How can TeacherBro help you today?",
+            "How can Synesis help you today?",
             "Create a test in seconds.",
             "Explain any concept.",
             "Solve math & science problems.",
@@ -373,6 +526,5 @@
         typeLoop();
     });
     </script>
-    
 </body>
 </html>

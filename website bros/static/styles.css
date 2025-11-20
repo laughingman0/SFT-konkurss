@@ -286,50 +286,74 @@ body{
 }
 
 
-/* ----------------------------- */
-/* FLOATING INPUT FIX            */
-/* ----------------------------- */
+/* ================================
+   FIX: Floating input solid/opaque background
+   ================================ */
 
-.floating-input {
-  position: fixed;
-  bottom: 1.2rem;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--card-bg, #fff);
-  padding: 0.6rem 0.8rem;
-  border-radius: 2rem;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.25);
-  display: flex;
-  gap: 0.6rem;
-  z-index: 999;
-  width: min(92vw, 520px);
-}
-
-.floating-input input[type="text"] {
-  flex: 1;
-  padding: 0.55rem 1rem;
-  border-radius: 1.2rem;
-  border: 1px solid var(--border-color, #aaa);
-  background: var(--input-bg, #ffffff);
-  color: var(--text-color, #000);
-}
-
-.floating-input input[type="submit"] {
-  padding: 0.55rem 1.1rem;
-  border-radius: 1.2rem;
-  border: none;
-  cursor: pointer;
-  background: var(--accent, #4f8bff);
-  color: white;
-  font-weight: 600;
-}
-
-/* When keyboard opens on mobile */
-.floating-input.keyboard-open {
-  bottom: 0.4rem;
-}
-
-
+   .floating-input{
+    /* keep the pill layout and sizing */
+    position:fixed;
+    left:50%;
+    transform:translateX(-50%);
+    bottom:clamp(12px, env(safe-area-inset-bottom), 22px);
+    display:flex;
+    gap:10px;
+    align-items:center;
+    width:min(960px,calc(100% - 36px));
+    max-width:960px;
+    padding:10px;
+    border-radius:999px;
+  
+    /* SOLID or slightly opaque background to avoid text merging */
+    background: rgba(0,0,0,0.75); /* dark mode */
+    border:1px solid rgba(255,255,255,0.12);
+  
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    z-index:1150;
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  
+  .light .floating-input{
+    background: rgba(255,255,255,0.9); /* light mode */
+    border:1px solid rgba(0,0,0,0.12);
+  }
+  
+  /* keep keyboard behavior */
+  .floating-input.keyboard-open{
+    transform:translateX(-50%) translateY(-28%);
+  }
+  
+  /* input text stays readable */
+  .floating-input input[type="text"]{
+    flex:1 1 auto;
+    border:0;
+    outline:none;
+    padding:12px 16px;
+    border-radius:999px;
+    font-size:1rem;
+    background:transparent;
+    color:var(--text);
+  }
+  .floating-input input[type="text"]::placeholder{
+    color:var(--placeholder);
+  }
+  
+  /* submit button */
+  .floating-input input[type="submit"]{
+    flex:0 0 auto;
+    margin-left:6px;
+    padding:10px 14px;
+    border-radius:999px;
+    border:none;
+    background:var(--button-bg);
+    color:#000;
+    font-weight:700;
+    cursor:pointer;
+  }
+  .floating-input input[type="submit"]:active{
+    transform:translateY(1px);
+  }
+  
 /* ----------------------------- */
 /* HELP MODAL BUTTONS RESTORED   */
 /* ----------------------------- */
