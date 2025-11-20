@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>TeacherBro</title>
+
+  <!-- MathJax config (preserve $ and $$) -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$']],
+        displayMath: [['$$', '$$']],
+        processEscapes: false,
+        tags: 'none'
+      },
+      options: {
+        skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code'],
+        ignoreHtmlClass: 'no-mathjax'
+      },
+      chtml: {
+        displayAlign: 'center',
+        displayIndent: '2em'
+      }
+    };
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  <script>
+    // Prevent flash-of-incorrect-theme
+    if (localStorage.getItem('theme') === 'light') document.documentElement.classList.add('light');
+  </script>
+</head>
+<body>
+  <!-- top controls -->
+  <div class="top-controls" role="region" aria-label="Controls">
+    <button id="theme-toggle" aria-pressed="false" aria-label="Toggle theme">🌙</button>
+    <button id="help-toggle" aria-haspopup="dialog" aria-controls="help-modal" aria-label="Open help">❔ Help</button>
+  </div>
+
+  <!-- Disclaimer modal (session only) -->
+  <div class="modal-backdrop" id="disclaimer-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="disclaimer-title" tabindex="-1">
+      <h2 id="disclaimer-title">Early build — disclaimer</h2>
+      <p>
+        This site is an extremely early build. You may encounter bugs or unexpected behavior.
+        Please use cautiously and report issues if possible.
+      </p>
+      <div class="modal-actions">
+        <label class="small"><input type="checkbox" id="dont-show-again"> Don't show again this session</label>
+        <button id="disclaimer-accept" class="primary">Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="modal-backdrop" id="help-backdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="help-title" tabindex="-1">
+      <h2 id="help-title">How to use TeacherBro</h2>
+      <ol>
+        <li>Type a question in the floating input and press <strong>Ask</strong>.</li>
+        <li>To create a test type <strong>test</strong>, then provide rules when prompted.</li>
+        <li>To get solutions, type <strong>solution</strong> or ask about a specific question.</li>
+        <li>Math uses <code>$...$</code> and <code>$$...$$</code>.</li>
+      </ol>
+      <p class="muted">The input stays visible on mobile. If a formula is wide it will allow internal scrolling without breaking the page.</p>
+      <div class="modal-actions">
+        <a id="bug-report" class="secondary" href="#" target="_blank" rel="noopener">Report a bug</a>
+        <button id="help-close" class="primary-alt">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <main class="site">
+    <header class="site-header container">
+      <h4>TeacherBro</h4>
+      <h1><span class="auto-type" aria-hidden="true">How can TeacherBro help you today?</span></h1>
+    </header>
+
+    <section id="Box" class="card container" aria-live="polite">
+      {% if answer %}
+        <div class="answer" id="math-content">{{ answer|safe }}</div>
+      {% else %}
+        <div class="answer placeholder" id="math-content">
+          Ask me anything — try: "Create a test", "Solve question 2", or "Explain Bayes' theorem".
+        </div>
+      {% endif %}
+    </section>
+
+    <!-- Optional test section -->
+    <section id="TestSection" class="container" aria-hidden="true" style="display:none;">
+      <!-- reserved for future content -->
+    </section>
+  </main>
+
+  <!-- Floating, centered pill input (choice B) -->
+  <form method="POST" id="query-form" class="floating-input" role="search" aria-label="Ask TeacherBro">
+    <input id="request_input" name="request" type="text" inputmode="text"
+           placeholder="Ask me anything..." autocomplete="off" aria-label="Ask a question">
+    <input type="submit" value="Ask" aria-label="Submit question">
+  </form>
+
+  <footer class="foot container">
+    <small>Built for classroom use — experimental.</small>
+  </footer>
+
+  <script>
+    // Short selectors
+    const $ = s => document.querySelector(s);
+    const $$ = s => Array.from(document.querySelectorAll(s));
+
+    // Theme toggle
+    const themeBtn = $('#theme-toggle');
+    const root = document.documentElement;
+    function refreshThemeUI(){
+      const isLight = root.classList.contains('light');
+      themeBtn.textContent = isLight ? '🌙' : '☀️';
+      themeBtn.setAttribute('aria-pressed', String(isLight));
+    }
+    themeBtn.addEventListener('click', () => {
+      root.classList.toggle('light');
+      localStorage.setItem('theme', root.classList.contains('light') ? 'light' : 'dark');
+      refreshThemeUI();
+      setTimeout(() => { if (window.MathJax) MathJax.typesetPromise(); }, 120);
+    });
+    refreshThemeUI();
+
+    // Modal utilities
+    function openModal(backdrop){
+      backdrop.style.display = 'flex';
+      backdrop.setAttribute('aria-hidden', 'false');
+      document.body.style.overflow = 'hidden';
+      const dialog = backdrop.querySelector('.modal');
+      dialog && dialog.focus();
+    }
+    function closeModal(backdrop){
+      backdrop.style.display = 'none';
+      backdrop.setAttribute('aria-hidden', 'true');
+      document.body.style.overflow = '';
+    }
+
+    // Help modal
+    const helpToggle = $('#help-toggle'), helpBackdrop = $('#help-backdrop'), helpClose = $('#help-close');
+    helpToggle.addEventListener('click', () => openModal(helpBackdrop));
+    helpClose && helpClose.addEventListener('click', () => closeModal(helpBackdrop));
+    helpBackdrop.addEventListener('click', e => { if (e.target === helpBackdrop) closeModal(helpBackdrop); });
+
+    // Disclaimer modal (session-only)
+    const discBackdrop = $('#disclaimer-backdrop'), discAccept = $('#disclaimer-accept'), dontShow = $('#dont-show-again');
+    (function showDisclaimerIfNeeded(){
+      try {
+        if (sessionStorage.getItem('disclaimer_shown') === 'true') return;
+      } catch(e){}
+      // show after tiny delay so page layout is ready
+      setTimeout(() => openModal(discBackdrop), 240);
+    })();
+    discAccept && discAccept.addEventListener('click', () => {
+      if (dontShow.checked) try { sessionStorage.setItem('disclaimer_shown', 'true'); } catch(e){}
+      closeModal(discBackdrop);
+    });
+    discBackdrop.addEventListener('click', e => { if (e.target === discBackdrop) {
+      if (dontShow.checked) try { sessionStorage.setItem('disclaimer_shown', 'true'); } catch(e){}
+      closeModal(discBackdrop);
+    }});
+
+    // Close modals on Esc
+    document.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') {
+        if (helpBackdrop.style.display === 'flex') closeModal(helpBackdrop);
+        if (discBackdrop.style.display === 'flex') closeModal(discBackdrop);
+      }
+    });
+
+    // MathJax and responsive math blocks
+    function safeTypeset(){
+      if (!window.MathJax) return;
+      MathJax.typesetClear();
+      MathJax.typesetPromise().catch(err => console.warn('MathJax error', err));
+    }
+    // initial typeset
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(safeTypeset, 130);
+    });
+    window.addEventListener('pageshow', safeTypeset);
+
+    // Keep floating input visible after server response and avoid softlock
+    const input = $('#request_input');
+    const form = $('#query-form');
+    // Focus the input on load for convenience
+    input && input.focus();
+
+    // Prevent double submit
+    form.addEventListener('submit', (e) => {
+      const submit = form.querySelector('input[type="submit"]');
+      if (submit) {
+        submit.disabled = true;
+        submit.value = 'Sending...';
+      }
+    });
+
+    // Bug report: simple mailto prefill (placeholder)
+    const bugLink = $('#bug-report');
+    if (bugLink) {
+      // customize email / issue tracker here
+      bugLink.href = 'mailto:markussgrods@gmail.com?subject=TeacherBro%20bug%20report';
+    }
+
+    // Adjust floating input when virtual keyboard opens on mobile:
+    // mobile browsers often resize viewport; using resize event to nudge input.
+    let origVH = window.innerHeight;
+    function adjustForKeyboard(){
+      // If viewport shrinks substantially, nudge the floating input up
+      const vh = window.innerHeight;
+      const inputEl = document.querySelector('.floating-input');
+      if (!inputEl) return;
+      if (vh < origVH - 120) { // keyboard likely open
+        inputEl.classList.add('keyboard-open');
+      } else {
+        inputEl.classList.remove('keyboard-open');
+      }
+    }
+    window.addEventListener('resize', adjustForKeyboard);
+
+  </script>
+  <script>
+    /* Auto-cycling typewriter */
+    document.addEventListener("DOMContentLoaded", () => {
+        const element = document.querySelector(".auto-type");
+        const messages = [
+            "How can TeacherBro help you today?",
+            "Create a test in seconds.",
+            "Explain any concept.",
+            "Solve math & science problems.",
+            "Ask me anything!"
+        ];
+    
+        let index = 0;
+        let char = 0;
+        let deleting = false;
+    
+        const typeSpeed = 60;
+        const deleteSpeed = 40;
+        const holdTime = 1000;
+    
+        function typeLoop() {
+            const current = messages[index];
+    
+            if (!deleting) {
+                element.textContent = current.substring(0, char + 1);
+                char++;
+                if (char === current.length) {
+                    deleting = true;
+                    return setTimeout(typeLoop, holdTime);
+                }
+            } else {
+                element.textContent = current.substring(0, char - 1);
+                char--;
+                if (char === 0) {
+                    deleting = false;
+                    index = (index + 1) % messages.length;
+                }
+            }
+    
+            setTimeout(typeLoop, deleting ? deleteSpeed : typeSpeed);
+        }
+    
+        typeLoop();
+    });
+    </script>
+    
+</body>
+</html>
