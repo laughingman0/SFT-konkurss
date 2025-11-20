@@ -97,7 +97,7 @@
 
       <!-- Answer content -->
       {% if answer %}
-        <div class="answer" id="math-content">{{ answer|safe }}</div>
+        <div class="answer" id="math-content" data-full-answer="{{ answer|e }}"></div>
       {% else %}
         <div class="answer placeholder" id="math-content">
           Ask me anything — try: "Create a test", "Solve question 2", or "Explain Bayes' theorem".
@@ -147,8 +147,57 @@
         if (spinner && answer) {
             spinner.classList.remove('active');
             answer.classList.remove('hidden');
-            safeTypeset(); // Re-render MathJax after content appears
         }
+    }
+
+    // Typewriter effect for answers
+    function typeAnswer(element, text, speed = 20) {
+        return new Promise((resolve) => {
+            let index = 0;
+            element.innerHTML = ''; // Clear existing content
+            
+            function typeChar() {
+                if (index < text.length) {
+                    // Add next character
+                    element.innerHTML += text[index];
+                    index++;
+                    
+                    // Scroll to keep visible
+                    element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // Schedule next character
+                    setTimeout(typeChar, speed);
+                } else {
+                    // Finished typing
+                    resolve();
+                }
+            }
+            
+            typeChar();
+        });
+    }
+
+    // Process answers with typewriter effect
+    function processAnswer() {
+        const answerElement = document.getElementById('math-content');
+        if (!answerElement) return;
+        
+        const fullAnswer = answerElement.getAttribute('data-full-answer');
+        if (!fullAnswer) return;
+        
+        // Clear the element and start typing
+        answerElement.innerHTML = '';
+        answerElement.removeAttribute('data-full-answer');
+        
+        typeAnswer(answerElement, fullAnswer, 5).then(() => {
+            // After typing is complete, render MathJax
+            setTimeout(() => {
+                if (window.MathJax) {
+                    MathJax.typesetClear();
+                    MathJax.typesetPromise().catch(err => console.warn('MathJax error', err));
+                }
+            }, 100);
+        });
     }
 
     // Theme toggle
@@ -219,12 +268,6 @@
       MathJax.typesetClear();
       MathJax.typesetPromise().catch(err => console.warn('MathJax error', err));
     }
-    // initial typeset
-    document.addEventListener('DOMContentLoaded', () => {
-      setTimeout(safeTypeset, 130);
-      hideLoading(); // Ensure loading is hidden on initial load
-    });
-    window.addEventListener('pageshow', safeTypeset);
 
     // Keep floating input visible after server response and avoid softlock
     const input = $('#request_input');
@@ -267,6 +310,21 @@
       }
     }
     window.addEventListener('resize', adjustForKeyboard);
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', () => {
+      hideLoading(); // Ensure loading is hidden on initial load
+      
+      // Process answer with typewriter effect if there is one
+      setTimeout(() => {
+        processAnswer();
+      }, 300);
+    });
+
+    // Also process answer when navigating back/forward
+    window.addEventListener('pageshow', () => {
+      setTimeout(processAnswer, 100);
+    });
 
   </script>
   <script>
