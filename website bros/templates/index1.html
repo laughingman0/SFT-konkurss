@@ -26,6 +26,9 @@
   </script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js" defer></script>
 
+  <!-- Tenor GIF Embed -->
+  <script type="text/javascript" async src="https://tenor.com/embed.js"></script>
+
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   <script>
     // Prevent flash-of-incorrect-theme
@@ -75,10 +78,24 @@
   <main class="site">
     <header class="site-header container">
       <h4>TeacherBro</h4>
-      <h1><span class="auto-type" aria-hidden="true">How can TeacherBro help you today?</span></h1>
+      <h1>
+        <span class="auto-type">How can TeacherBro help you today?</span>
+      </h1>
     </header>
 
     <section id="Box" class="card container" aria-live="polite">
+      <!-- Loading spinner with duck GIF -->
+      <div class="loading-spinner" id="loading-spinner">
+        <div class="tenor-gif-embed duck-spinner" 
+             data-postid="4818987729686334008" 
+             data-share-method="host" 
+             data-aspect-ratio="1.11111" 
+             data-width="100%">
+        </div>
+        <p class="loading-text">Thinking...</p>
+      </div>
+
+      <!-- Answer content -->
       {% if answer %}
         <div class="answer" id="math-content">{{ answer|safe }}</div>
       {% else %}
@@ -109,6 +126,30 @@
     // Short selectors
     const $ = s => document.querySelector(s);
     const $$ = s => Array.from(document.querySelectorAll(s));
+
+    // Loading spinner functions
+    function showLoading() {
+        const spinner = document.getElementById('loading-spinner');
+        const answer = document.getElementById('math-content');
+        const box = document.getElementById('Box');
+        
+        if (spinner && answer) {
+            spinner.classList.add('active');
+            answer.classList.add('hidden');
+            box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    }
+
+    function hideLoading() {
+        const spinner = document.getElementById('loading-spinner');
+        const answer = document.getElementById('math-content');
+        
+        if (spinner && answer) {
+            spinner.classList.remove('active');
+            answer.classList.remove('hidden');
+            safeTypeset(); // Re-render MathJax after content appears
+        }
+    }
 
     // Theme toggle
     const themeBtn = $('#theme-toggle');
@@ -181,6 +222,7 @@
     // initial typeset
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(safeTypeset, 130);
+      hideLoading(); // Ensure loading is hidden on initial load
     });
     window.addEventListener('pageshow', safeTypeset);
 
@@ -190,12 +232,16 @@
     // Focus the input on load for convenience
     input && input.focus();
 
-    // Prevent double submit
+    // Form submission with loading spinner
     form.addEventListener('submit', (e) => {
       const submit = form.querySelector('input[type="submit"]');
+      
+      // Show loading spinner
+      showLoading();
+      
       if (submit) {
         submit.disabled = true;
-        submit.value = 'Sending...';
+        submit.value = 'Thinking...';
       }
     });
 
@@ -224,7 +270,7 @@
 
   </script>
   <script>
-    /* Auto-cycling typewriter */
+    /* Simple stable typewriter - NO SHAKING */
     document.addEventListener("DOMContentLoaded", () => {
         const element = document.querySelector(".auto-type");
         const messages = [
@@ -251,7 +297,8 @@
                 char++;
                 if (char === current.length) {
                     deleting = true;
-                    return setTimeout(typeLoop, holdTime);
+                    setTimeout(typeLoop, holdTime);
+                    return;
                 }
             } else {
                 element.textContent = current.substring(0, char - 1);
